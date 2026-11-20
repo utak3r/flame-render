@@ -161,3 +161,30 @@ TEST(FlameCpuRendererTest, AppliesHueRotationWithoutMutatingSourceFractal) {
     const FlameImage imgPreRotated = renderer.render(opts);
     EXPECT_EQ(imgHueRotated.rawRGBA(), imgPreRotated.rawRGBA());
 }
+
+TEST(FlameImageTest, SaveAndLoadPngWithUnicodePath) {
+    FlameImage img(3, 2, PixelRGBA{10, 20, 30, 255});
+    img.setPixel(1, 0, PixelRGBA{200, 100, 50, 128});
+    img.setPixel(2, 1, PixelRGBA{0, 255, 127, 255});
+
+    const std::filesystem::path unicodePath =
+        std::filesystem::temp_directory_path() /
+        std::filesystem::path(u8"flame_unicode_テスト_αβγ.png");
+    std::error_code ec;
+    std::filesystem::remove(unicodePath, ec);
+
+    ASSERT_TRUE(img.savePng(unicodePath, true));
+    ASSERT_TRUE(std::filesystem::exists(unicodePath));
+
+    const FlameImage loaded = FlameImage::loadPng(unicodePath);
+    EXPECT_EQ(loaded.width(), img.width());
+    EXPECT_EQ(loaded.height(), img.height());
+    EXPECT_EQ(loaded.rawRGBA(), img.rawRGBA());
+
+    std::filesystem::remove(unicodePath, ec);
+
+    const std::filesystem::path missingUnicodePath =
+        std::filesystem::temp_directory_path() /
+        std::filesystem::path(u8"flame_missing_テスト_αβγ.png");
+    EXPECT_THROW(FlameImage::loadPng(missingUnicodePath), std::runtime_error);
+}

@@ -1,9 +1,19 @@
 #include "renderer/FlameImage.h"
 
 #include <lodepng.h>
+#include <fstream>
 #include <stdexcept>
 
 namespace flame {
+
+namespace {
+
+std::string pathToUtf8(const std::filesystem::path& path) {
+    const auto u8 = path.u8string();
+    return std::string(reinterpret_cast<const char*>(u8.data()), u8.size());
+}
+
+}  // namespace
 
 FlameImage::FlameImage(int width, int height, PixelRGBA fill)
     : width_(width),
@@ -59,22 +69,42 @@ bool FlameImage::savePng(const std::filesystem::path& path,
         std::error_code ec;
         std::filesystem::create_directories(path.parent_path(), ec);
     }
-    return lodepng::save_file(pngBytes, path.string()) == 0;
+    std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
+    if (!ofs) {
+        return false;
+    }
+    ofs.write(reinterpret_cast<const char*>(pngBytes.data()),
+              static_cast<std::streamsize>(pngBytes.size()));
+    return ofs.good();
 }
 
 FlameImage FlameImage::loadPng(const std::filesystem::path& path) {
-    std::vector<uint8_t> pngBytes;
-    unsigned error = lodepng::load_file(pngBytes, path.string());
-    if (error != 0) {
-        throw std::runtime_error("Failed to load PNG file: " + path.string() +
-                                 " (" + lodepng_error_text(error) + ")");
+    std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+    if (!ifs) {
+        throw std::runtime_error("Failed to open PNG file: " +
+                                 pathToUtf8(path));
     }
+    const std::streamsize fileSize = ifs.tellg();
+    if (fileSize < 0) {
+        throw std::runtime_error("Failed to read PNG file: " +
+                                 pathToUtf8(path));
+    }
+    ifs.seekg(0, std::ios::beg);
+    std::vector<uint8_t> pngBytes(static_cast<size_t>(fileSize));
+    if (fileSize > 0 &&
+        !ifs.read(reinterpret_cast<char*>(pngBytes.data()), fileSize)) {
+        throw std::runtime_error("Failed to read PNG file: " +
+                                 pathToUtf8(path));
+    }
+
     std::vector<uint8_t> decoded;
     unsigned w = 0, h = 0;
-    error = lodepng::decode(decoded, w, h, pngBytes, LCT_RGBA, 8);
+    const unsigned error =
+        lodepng::decode(decoded, w, h, pngBytes, LCT_RGBA, 8);
     if (error != 0) {
-        throw std::runtime_error("Failed to decode PNG file: " + path.string() +
-                                 " (" + lodepng_error_text(error) + ")");
+        throw std::runtime_error(
+            "Failed to decode PNG file: " + pathToUtf8(path) + " (" +
+            lodepng_error_text(error) + ")");
     }
     FlameImage img(static_cast<int>(w), static_cast<int>(h));
     img.data_ = std::move(decoded);
