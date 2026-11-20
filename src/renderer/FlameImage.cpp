@@ -15,11 +15,16 @@ std::string pathToUtf8(const std::filesystem::path& path) {
 
 }  // namespace
 
-FlameImage::FlameImage(int width, int height, PixelRGBA fill)
-    : width_(width),
-      height_(height),
-      data_(static_cast<size_t>(width) * height * 4) {
-    for (size_t i = 0; i < static_cast<size_t>(width) * height; ++i) {
+FlameImage::FlameImage(int width, int height, PixelRGBA fill) {
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+    width_ = width;
+    height_ = height;
+    const size_t pixelCount =
+        static_cast<size_t>(width) * static_cast<size_t>(height);
+    data_.resize(pixelCount * 4);
+    for (size_t i = 0; i < pixelCount; ++i) {
         data_[i * 4 + 0] = fill.r;
         data_[i * 4 + 1] = fill.g;
         data_[i * 4 + 2] = fill.b;
@@ -28,12 +33,18 @@ FlameImage::FlameImage(int width, int height, PixelRGBA fill)
 }
 
 PixelRGBA FlameImage::getPixel(int x, int y) const noexcept {
+    if (x < 0 || x >= width_ || y < 0 || y >= height_) {
+        return PixelRGBA{0, 0, 0, 0};
+    }
     const size_t idx = (static_cast<size_t>(y) * width_ + x) * 4;
     return PixelRGBA{data_[idx + 0], data_[idx + 1], data_[idx + 2],
                      data_[idx + 3]};
 }
 
 void FlameImage::setPixel(int x, int y, PixelRGBA p) noexcept {
+    if (x < 0 || x >= width_ || y < 0 || y >= height_) {
+        return;
+    }
     const size_t idx = (static_cast<size_t>(y) * width_ + x) * 4;
     data_[idx + 0] = p.r;
     data_[idx + 1] = p.g;

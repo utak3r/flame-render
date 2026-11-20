@@ -188,3 +188,90 @@ TEST(FlameImageTest, SaveAndLoadPngWithUnicodePath) {
         std::filesystem::path(u8"flame_missing_テスト_αβγ.png");
     EXPECT_THROW(FlameImage::loadPng(missingUnicodePath), std::runtime_error);
 }
+
+TEST(FlameImageTest, NegativeDimensionsAndOutOfBoundsAccess) {
+    FlameImage negW(-10, 5);
+    EXPECT_TRUE(negW.empty());
+    EXPECT_EQ(negW.width(), 0);
+    EXPECT_EQ(negW.height(), 0);
+
+    FlameImage negH(5, -10);
+    EXPECT_TRUE(negH.empty());
+    EXPECT_EQ(negH.width(), 0);
+    EXPECT_EQ(negH.height(), 0);
+
+    FlameImage img(2, 2, PixelRGBA{1, 2, 3, 255});
+    img.setPixel(-1, 0, PixelRGBA{99, 99, 99, 255});
+    img.setPixel(2, 0, PixelRGBA{99, 99, 99, 255});
+    img.setPixel(0, -1, PixelRGBA{99, 99, 99, 255});
+    img.setPixel(0, 2, PixelRGBA{99, 99, 99, 255});
+    EXPECT_EQ(img.getPixel(-1, 0), (PixelRGBA{0, 0, 0, 0}));
+    EXPECT_EQ(img.getPixel(2, 2), (PixelRGBA{0, 0, 0, 0}));
+    EXPECT_EQ(img.getPixel(0, 0), (PixelRGBA{1, 2, 3, 255}));
+}
+
+TEST(FlameToneMapperTest, HandlesInvalidParametersGracefully) {
+    FlameToneMapper tm;
+    tm.createFilter(0, -2.5);
+    EXPECT_EQ(tm.filterSize(), 1);
+    ASSERT_EQ(tm.filterKernel().size(), 1u);
+    EXPECT_DOUBLE_EQ(tm.filterKernel()[0], 1.0);
+
+    FlameFractal f = FlameFractal::createRandom(2, 3, 77);
+    f.width = 4;
+    f.height = 4;
+    f.scale = 0.0;
+    f.contrast = 0.0;
+    f.whiteLevel = 0;
+    f.gammaThreshold = -0.5;
+    f.transparency = false;
+
+    std::vector<Bucket64> buckets(16);
+    buckets[5] = Bucket64{1000, 2000, 3000, 10};
+    FlameImage img = tm.createImage(f, 10.0, buckets, 4, 4);
+    EXPECT_EQ(img.width(), 4);
+    EXPECT_EQ(img.height(), 4);
+}
+
+TEST(FlameCpuRendererTest, ValidatesAndClampsInvalidParameters) {
+    FlameFractal f = FlameFractal::createRandom(2, 3, 88);
+    f.width = 32;
+    f.height = 32;
+    f.oversample = 0;
+    f.filterRadius = -1.5;
+    f.scale = 0.0;
+    f.contrast = 0.0;
+    f.whiteLevel = -10;
+    f.gammaThreshold = -0.25;
+    f.quality = -5.0;
+
+    RenderOptions opts;
+    opts.numThreads = 1;
+    opts.seed = 12345ULL;
+
+    const FlameFractal resolvedLow =
+        FlameCpuRenderer::resolveEffectiveFractal(f, opts);
+    EXPECT_EQ(resolvedLow.oversample, 1);
+    EXPECT_GE(resolvedLow.filterRadius, 0.0);
+    EXPECT_GT(resolvedLow.scale, 0.0);
+    EXPECT_GT(resolvedLow.contrast, 0.0);
+    EXPECT_GT(resolvedLow.whiteLevel, 0);
+    EXPECT_GE(resolvedLow.gammaThreshold, 0.0);
+    EXPECT_GT(resolvedLow.quality, 0.0);
+
+    f.oversample = FlameCpuRenderer::kMaxFilterWidth + 10;
+    const FlameFractal resolvedHigh =
+        FlameCpuRenderer::resolveEffectiveFractal(f, opts);
+    EXPECT_EQ(resolvedHigh.oversample, FlameCpuRenderer::kMaxFilterWidth);
+
+    FlameCpuRenderer renderer;
+    renderer.setFractal(&f);
+    FlameImage img = renderer.render(opts);
+    EXPECT_EQ(img.width(), 32);
+    EXPECT_EQ(img.height(), 32);
+
+    f.width = -4;
+    f.height = 16;
+    FlameImage emptyImg = renderer.render(opts);
+    EXPECT_TRUE(emptyImg.empty());
+}

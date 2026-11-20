@@ -8,8 +8,11 @@ namespace flame {
 
 void FlameToneMapper::createFilter(int oversample, double filterRadius) {
     oversample_ = std::max(1, oversample);
+    const double safeRadius =
+        (std::isfinite(filterRadius) && filterRadius > 0.0) ? filterRadius
+                                                            : 0.0;
     const int fw = static_cast<int>(std::trunc(
-        2.0 * FlameFractal::kFilterCutoff * oversample_ * filterRadius));
+        2.0 * FlameFractal::kFilterCutoff * oversample_ * safeRadius));
     filterSize_ = fw + 1;
 
     // Make sure filterSize has same parity as oversample
@@ -47,17 +50,27 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
                                         int bucketWidth,
                                         int bucketHeight) const {
     FlameImage img(cp.width, cp.height);
-    if (cp.width <= 0 || cp.height <= 0 || buckets.empty()) {
+    if (cp.width <= 0 || cp.height <= 0 || bucketWidth <= 0 ||
+        bucketHeight <= 0 ||
+        buckets.size() < static_cast<size_t>(bucketWidth) *
+                             static_cast<size_t>(bucketHeight)) {
         return img;
     }
 
     const double gamma = (cp.gamma == 0.0) ? 0.0 : (1.0 / cp.gamma);
     const int64_t vib = apoRound(cp.vibrancy * 256.0);
     const int64_t notvib = 256 - vib;
+    const double gammaThreshold =
+        (std::isfinite(cp.gammaThreshold) && cp.gammaThreshold > 0.0)
+            ? cp.gammaThreshold
+            : 0.0;
+    const int whiteLevel = std::max(1, cp.whiteLevel);
+    const double contrast =
+        (std::isfinite(cp.contrast) && cp.contrast > 0.0) ? cp.contrast : 0.0;
 
     double funcval = 0.0;
-    if (cp.gammaThreshold != 0.0) {
-        funcval = std::pow(cp.gammaThreshold, gamma - 1.0);
+    if (gammaThreshold > 0.0) {
+        funcval = std::pow(gammaThreshold, gamma - 1.0);
     }
 
     const int64_t bgi[3] = {cp.background[0], cp.background[1],
@@ -87,21 +100,27 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
 
     constexpr double kPrefilterWhite =
         static_cast<double>(FlameFractal::kPrefilterWhite);
-    const double k1 = (cp.contrast * FlameFractal::kBrightAdjust *
-                       cp.brightness * 268.0 * kPrefilterWhite) /
+    const double k1 = (contrast * FlameFractal::kBrightAdjust * cp.brightness *
+                       268.0 * kPrefilterWhite) /
                       256.0;
+    const double ppuProd = cp.ppux() * cp.ppuy();
     const double area =
-        (static_cast<double>(cp.width) * static_cast<double>(cp.height)) /
-        (cp.ppux() * cp.ppuy());
-    const double k2 = static_cast<double>(oversample_ * oversample_) /
-                      (cp.contrast * area * static_cast<double>(cp.whiteLevel) *
-                       sampleDensity);
+        (ppuProd > 0.0 && std::isfinite(ppuProd))
+            ? (static_cast<double>(cp.width) * static_cast<double>(cp.height)) /
+                  ppuProd
+            : 1.0;
+    const double denom =
+        contrast * area * static_cast<double>(whiteLevel) * sampleDensity;
+    const double k2 =
+        (denom > 0.0 && std::isfinite(denom))
+            ? static_cast<double>(oversample_ * oversample_) / denom
+            : 0.0;
 
     std::array<double, 1025> lsa{};
     lsa[0] = 0.0;
     for (int i = 1; i <= 1024; ++i) {
         const double wl_i =
-            static_cast<double>(cp.whiteLevel) * static_cast<double>(i);
+            static_cast<double>(whiteLevel) * static_cast<double>(i);
         lsa[static_cast<size_t>(i)] = (k1 * std::log10(1.0 + wl_i * k2)) / wl_i;
     }
 
@@ -127,7 +146,7 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
                             ls = lsa[static_cast<size_t>(b.count)];
                         } else {
                             const double wl_c =
-                                static_cast<double>(cp.whiteLevel) *
+                                static_cast<double>(whiteLevel) *
                                 static_cast<double>(b.count);
                             ls = (k1 * std::log10(1.0 + wl_c * k2)) / wl_c;
                         }
@@ -142,8 +161,8 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
                 fp[0] /= kPrefilterWhite;
                 fp[1] /= kPrefilterWhite;
                 fp[2] /= kPrefilterWhite;
-                fp[3] = static_cast<double>(cp.whiteLevel) * fp[3] /
-                        kPrefilterWhite;
+                fp[3] =
+                    static_cast<double>(whiteLevel) * fp[3] / kPrefilterWhite;
             } else {
                 const Bucket64& b = getBucket(bx, by);
                 double ls = 0.0;
@@ -152,7 +171,7 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
                         ls =
                             lsa[static_cast<size_t>(b.count)] / kPrefilterWhite;
                     } else {
-                        const double wl_c = static_cast<double>(cp.whiteLevel) *
+                        const double wl_c = static_cast<double>(whiteLevel) *
                                             static_cast<double>(b.count);
                         ls = (k1 * std::log10(1.0 + wl_c * k2)) / wl_c /
                              kPrefilterWhite;
@@ -162,7 +181,7 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
                 fp[1] = ls * static_cast<double>(b.green);
                 fp[2] = ls * static_cast<double>(b.blue);
                 fp[3] = ls * static_cast<double>(b.count) *
-                        static_cast<double>(cp.whiteLevel);
+                        static_cast<double>(whiteLevel);
             }
 
             bx += oversample_;
@@ -170,8 +189,8 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
             if (cp.transparency) {
                 if (fp[3] > 0.0) {
                     double alpha = 0.0;
-                    if (fp[3] <= cp.gammaThreshold) {
-                        const double frac = fp[3] / cp.gammaThreshold;
+                    if (fp[3] <= gammaThreshold) {
+                        const double frac = fp[3] / gammaThreshold;
                         alpha = (1.0 - frac) * fp[3] * funcval +
                                 frac * std::pow(fp[3], gamma);
                     } else {
@@ -226,8 +245,8 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
             } else {
                 if (fp[3] > 0.0) {
                     double alpha = 0.0;
-                    if (fp[3] <= cp.gammaThreshold) {
-                        const double frac = fp[3] / cp.gammaThreshold;
+                    if (fp[3] <= gammaThreshold) {
+                        const double frac = fp[3] / gammaThreshold;
                         alpha = (1.0 - frac) * fp[3] * funcval +
                                 frac * std::pow(fp[3], gamma);
                     } else {

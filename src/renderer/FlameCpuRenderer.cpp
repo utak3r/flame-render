@@ -37,8 +37,14 @@ CameraParams createCamera(const FlameFractal& cp,
     CameraParams cam{};
     const double scale = std::pow(2.0, cp.zoom);
     cam.sampleDensity = cp.quality * scale * scale;
-    const double ppux = cp.scale * scale;
-    const double ppuy = cp.scale * scale;
+    double ppux = cp.scale * scale;
+    double ppuy = cp.scale * scale;
+    if (!std::isfinite(ppux) || std::abs(ppux) < 1e-12) {
+        ppux = 1.0;
+    }
+    if (!std::isfinite(ppuy) || std::abs(ppuy) < 1e-12) {
+        ppuy = 1.0;
+    }
 
     const double cornerX =
         cp.center[0] - static_cast<double>(cp.width) / ppux / 2.0;
@@ -161,6 +167,26 @@ FlameFractal FlameCpuRenderer::resolveEffectiveFractal(
         cp.transparency = *options.transparent;
     }
 
+    cp.oversample = std::clamp(cp.oversample, 1, kMaxFilterWidth);
+    if (!std::isfinite(cp.filterRadius) || cp.filterRadius < 0.0) {
+        cp.filterRadius = 0.0;
+    }
+    if (!std::isfinite(cp.scale) || std::abs(cp.scale) < 1e-12) {
+        cp.scale = 50.0;
+    }
+    if (!std::isfinite(cp.contrast) || cp.contrast <= 0.0) {
+        cp.contrast = 1.0;
+    }
+    if (cp.whiteLevel <= 0) {
+        cp.whiteLevel = FlameFractal::kDefaultWhiteLevel;
+    }
+    if (!std::isfinite(cp.gammaThreshold) || cp.gammaThreshold < 0.0) {
+        cp.gammaThreshold = 0.0;
+    }
+    if (!std::isfinite(cp.quality) || cp.quality <= 0.0) {
+        cp.quality = 1.0;
+    }
+
     return cp;
 }
 
@@ -173,7 +199,7 @@ FlameImage FlameCpuRenderer::render(const RenderOptions& options) {
     stopRequested_.store(false, std::memory_order_relaxed);
     FlameFractal cp = resolveEffectiveFractal(*fractal_, options);
 
-    if (cp.xforms.empty()) {
+    if (cp.xforms.empty() || cp.width <= 0 || cp.height <= 0) {
         return FlameImage(cp.width, cp.height);
     }
 

@@ -13,6 +13,9 @@ namespace flame {
 // Banker's rounding (round half to even), matching Delphi's System.Round() /
 // x87 FISTP
 inline int64_t apoRound(double x) noexcept {
+    if (!std::isfinite(x)) {
+        return 0;
+    }
     return static_cast<int64_t>(std::nearbyint(x));
 }
 
