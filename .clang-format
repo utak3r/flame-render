@@ -1,0 +1,13 @@
+BasedOnStyle: Chromium
+IndentWidth: 4
+UseTab: Never
+IndentCaseBlocks: true
+IndentCaseLabels: true
+InsertNewlineAtEOF: true
+AlignAfterOpenBracket: Align
+AllowAllParametersOfDeclarationOnNextLine: true
+BreakFunctionDefinitionParameters: false
+PenaltyBreakBeforeFirstCallParameter: 1
+SpaceBeforeSquareBrackets: false
+SpacesInSquareBrackets: false
+SpaceBeforeRangeBasedForLoopColon: true
