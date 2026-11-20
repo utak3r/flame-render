@@ -352,3 +352,32 @@ TEST(FlameFractalTest, AdjustScaleAndRandomCreation) {
     EXPECT_EQ(f.height, 780);
     EXPECT_NEAR(f.scale, origScale * 2.0, 1e-9);
 }
+
+TEST(FlameFractalTest, NormalizeWeightsHandlesNormalSmallAndEmptyCases) {
+    FlameFractal empty;
+    empty.normalizeWeights();
+    EXPECT_TRUE(empty.xforms.empty());
+
+    FlameFractal normal;
+    normal.xforms.resize(3);
+    normal.xforms[0].weight = 1.0;
+    normal.xforms[1].weight = 2.0;
+    normal.xforms[2].weight = 1.0;
+    normal.normalizeWeights();
+    EXPECT_DOUBLE_EQ(normal.xforms[0].weight, 0.25);
+    EXPECT_DOUBLE_EQ(normal.xforms[1].weight, 0.5);
+    EXPECT_DOUBLE_EQ(normal.xforms[2].weight, 0.25);
+
+    FlameFractal tiny;
+    tiny.xforms.resize(4);
+    for (auto& xf : tiny.xforms) {
+        xf.weight = 0.0001;
+    }
+    tiny.normalizeWeights();
+    double sum = 0.0;
+    for (const auto& xf : tiny.xforms) {
+        EXPECT_DOUBLE_EQ(xf.weight, 0.25);
+        sum += xf.weight;
+    }
+    EXPECT_DOUBLE_EQ(sum, 1.0);
+}

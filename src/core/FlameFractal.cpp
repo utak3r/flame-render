@@ -84,12 +84,18 @@ void FlameFractal::equalizeWeights() noexcept {
 }
 
 void FlameFractal::normalizeWeights() noexcept {
+    if (xforms.empty()) {
+        return;
+    }
     double total = 0.0;
     for (const auto& xf : xforms) {
         total += xf.weight;
     }
     if (total < 0.001) {
-        equalizeWeights();
+        const double w = 1.0 / static_cast<double>(xforms.size());
+        for (auto& xf : xforms) {
+            xf.weight = w;
+        }
     } else {
         for (auto& xf : xforms) {
             xf.weight /= total;
