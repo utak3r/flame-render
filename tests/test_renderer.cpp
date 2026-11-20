@@ -120,3 +120,44 @@ TEST(FlameCpuRendererTest, RenderOptionsOverridesAndDeterminism) {
     ASSERT_EQ(img1.rawRGBA().size(), img2.rawRGBA().size());
     EXPECT_EQ(img1.rawRGBA(), img2.rawRGBA());
 }
+
+TEST(FlameCpuRendererTest, AppliesHueRotationWithoutMutatingSourceFractal) {
+    FlameFractal f = FlameFractal::createRandom(2, 4, 101);
+    // Solid pure red gradient so a 1/3 hue rotation shifts it to pure green.
+    for (size_t i = 0; i < FlameGradient::kPaletteSize; ++i) {
+        f.gradient[i] = RGBColor{255, 0, 0};
+    }
+
+    RenderOptions opts;
+    opts.width = 64;
+    opts.height = 64;
+    opts.quality = 10.0;
+    opts.oversample = 1;
+    opts.filterRadius = 0.0;
+    opts.numThreads = 1;
+    opts.seed = 424242ULL;
+
+    FlameCpuRenderer renderer;
+
+    f.hueRotation = 1.0;
+    renderer.setFractal(&f);
+    const FlameImage imgUnrotated = renderer.render(opts);
+
+    f.hueRotation = 1.0 / 3.0;
+    const FlameGradient originalGradient = f.gradient;
+    const FlameImage imgHueRotated = renderer.render(opts);
+
+    // Source fractal gradient must remain unchanged after rendering.
+    EXPECT_EQ(f.gradient.colors(), originalGradient.colors());
+
+    // Hue-rotated render must differ from unrotated render.
+    EXPECT_NE(imgHueRotated.rawRGBA(), imgUnrotated.rawRGBA());
+
+    // Rendering with hueRotation = 1/3 must match pre-rotating the gradient.
+    FlameFractal preRotated = f;
+    preRotated.hueRotation = 1.0;
+    preRotated.gradient.applyHueRotation(1.0 / 3.0);
+    renderer.setFractal(&preRotated);
+    const FlameImage imgPreRotated = renderer.render(opts);
+    EXPECT_EQ(imgHueRotated.rawRGBA(), imgPreRotated.rawRGBA());
+}

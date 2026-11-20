@@ -190,6 +190,7 @@ FlameImage FlameCpuRenderer::render(const RenderOptions& options) {
 
     const CameraParams cam = createCamera(cp, bucketWidth, bucketHeight,
                                           gutterWidth, maxGutterWidth);
+    cp.gradient.applyHueRotation(cp.hueRotation);
     const auto colorMap = cp.gradient.createScaledColorMap(cp.whiteLevel);
 
     // Calculate batch count
