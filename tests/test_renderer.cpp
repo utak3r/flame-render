@@ -275,3 +275,22 @@ TEST(FlameCpuRendererTest, ValidatesAndClampsInvalidParameters) {
     FlameImage emptyImg = renderer.render(opts);
     EXPECT_TRUE(emptyImg.empty());
 }
+
+TEST(FlameCpuRendererTest, ThrowsWhenOutputPngCannotBeSaved) {
+    FlameFractal f = FlameFractal::createRandom(2, 3, 55);
+    FlameCpuRenderer renderer;
+    renderer.setFractal(&f);
+
+    RenderOptions opts;
+    opts.width = 16;
+    opts.height = 16;
+    opts.quality = 5.0;
+    opts.oversample = 1;
+    opts.filterRadius = 0.0;
+    opts.numThreads = 1;
+    opts.seed = 999ULL;
+    // Passing an existing directory as outputFilename guarantees savePng fails
+    opts.outputFilename = std::filesystem::temp_directory_path();
+
+    EXPECT_THROW(renderer.render(opts), std::runtime_error);
+}

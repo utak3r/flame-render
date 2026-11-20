@@ -400,8 +400,12 @@ FlameImage FlameCpuRenderer::render(const RenderOptions& options) {
     FlameImage result = toneMapper.createImage(cp, actualDensity, mergedBuckets,
                                                bucketWidth, bucketHeight);
 
-    if (!options.outputFilename.empty()) {
-        result.savePng(options.outputFilename, cp.transparency);
+    if (!options.outputFilename.empty() &&
+        !result.savePng(options.outputFilename, cp.transparency)) {
+        const auto u8 = options.outputFilename.u8string();
+        throw std::runtime_error(
+            "Failed to save rendered PNG to: " +
+            std::string(reinterpret_cast<const char*>(u8.data()), u8.size()));
     }
 
     return result;
