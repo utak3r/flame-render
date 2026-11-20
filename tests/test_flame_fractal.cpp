@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <locale>
 
 #include "core/FlameFractal.h"
 #include "core/FlameGradient.h"
@@ -290,6 +291,53 @@ TEST(FlameXmlSerializerTest, EscapesAttributesAndPreservesAllFields) {
     EXPECT_EQ(defaultXml.find("time="), std::string::npos);
     EXPECT_EQ(defaultXml.find("hue="), std::string::npos);
     EXPECT_EQ(defaultXml.find("contrast="), std::string::npos);
+}
+
+TEST(FlameXmlSerializerTest, LocaleIndependentFloatSerializationAndParsing) {
+    struct CommaDecimalFacet : std::numpunct<char> {
+       protected:
+        char do_decimal_point() const override { return ','; }
+        char do_thousands_sep() const override { return ' '; }
+        std::string do_grouping() const override { return "\3"; }
+    };
+
+    struct ScopedGlobalLocale {
+        std::locale prev;
+        explicit ScopedGlobalLocale(const std::locale& next)
+            : prev(std::locale::global(next)) {}
+        ~ScopedGlobalLocale() { std::locale::global(prev); }
+    };
+
+    const std::locale commaLocale(std::locale::classic(),
+                                  new CommaDecimalFacet());
+    ScopedGlobalLocale guard(commaLocale);
+
+    FlameFractal f = FlameFractal::createRandom(2, 2, 31415);
+    f.center = {1.25, -2.5};
+    f.scale = 123.75;
+    f.brightness = 3.5;
+    f.gamma = 2.25;
+    f.filterRadius = 0.75;
+    f.xforms[0].coefs = {{{0.5, -0.25}, {0.75, 1.5}, {-1.25, 2.5}}};
+
+    const std::string xml = FlameXmlSerializer::toXmlString(f);
+    // Serialized XML must use '.' rather than ',' as decimal separator
+    EXPECT_NE(xml.find("center=\"1.25 -2.5\""), std::string::npos);
+    EXPECT_NE(xml.find("scale=\"123.75\""), std::string::npos);
+    EXPECT_EQ(xml.find("1,25"), std::string::npos);
+
+    const auto reloaded = FlameXmlSerializer::loadFromString(xml);
+    ASSERT_EQ(reloaded.size(), 1u);
+    EXPECT_DOUBLE_EQ(reloaded[0].center[0], 1.25);
+    EXPECT_DOUBLE_EQ(reloaded[0].center[1], -2.5);
+    EXPECT_DOUBLE_EQ(reloaded[0].scale, 123.75);
+    EXPECT_DOUBLE_EQ(reloaded[0].brightness, 3.5);
+    EXPECT_DOUBLE_EQ(reloaded[0].gamma, 2.25);
+    EXPECT_DOUBLE_EQ(reloaded[0].filterRadius, 0.75);
+    ASSERT_GE(reloaded[0].xforms.size(), 1u);
+    EXPECT_DOUBLE_EQ(reloaded[0].xforms[0].coefs[0][0], 0.5);
+    EXPECT_DOUBLE_EQ(reloaded[0].xforms[0].coefs[0][1], -0.25);
+    EXPECT_DOUBLE_EQ(reloaded[0].xforms[0].coefs[2][1], 2.5);
 }
 
 TEST(FlameFractalTest, AdjustScaleAndRandomCreation) {

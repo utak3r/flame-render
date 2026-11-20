@@ -3,6 +3,8 @@
 #include <pugixml.hpp>
 
 #include <algorithm>
+#include <cctype>
+#include <charconv>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -14,9 +16,26 @@ namespace flame {
 
 namespace {
 
+double parseDoubleAttr(const pugi::xml_attribute& attr,
+                       double defaultValue) noexcept {
+    const std::string_view sv = attr.value();
+    const char* begin = sv.data();
+    const char* end = begin + sv.size();
+    while (begin < end && std::isspace(static_cast<unsigned char>(*begin))) {
+        ++begin;
+    }
+    if (begin < end && *begin == '+') {
+        ++begin;
+    }
+    double val = defaultValue;
+    const auto [ptr, ec] = std::from_chars(begin, end, val);
+    return (ec == std::errc{}) ? val : defaultValue;
+}
+
 std::vector<double> parseDoubleList(std::string_view str) {
     std::vector<double> result;
     std::istringstream iss{std::string(str)};
+    iss.imbue(std::locale::classic());
     double val = 0.0;
     while (iss >> val) {
         result.push_back(val);
@@ -31,18 +50,18 @@ FlameTransform parseXformNode(const pugi::xml_node& node, bool isFinal) {
 
     if (!isFinal) {
         if (auto attr = node.attribute("weight")) {
-            xf.weight = attr.as_double(0.0);
+            xf.weight = parseDoubleAttr(attr, 0.0);
         }
     }
 
     if (auto attr = node.attribute("color")) {
-        xf.color = attr.as_double(0.0);
+        xf.color = parseDoubleAttr(attr, 0.0);
     }
     if (auto attr = node.attribute("symmetry")) {
-        xf.symmetry = attr.as_double(0.0);
+        xf.symmetry = parseDoubleAttr(attr, 0.0);
     }
     if (auto attr = node.attribute("color_speed")) {
-        xf.symmetry = attr.as_double(0.0);
+        xf.symmetry = parseDoubleAttr(attr, 0.0);
     }
 
     if (auto attr = node.attribute("coefs")) {
@@ -84,7 +103,7 @@ FlameTransform parseXformNode(const pugi::xml_node& node, bool isFinal) {
         }
     }
     if (auto attr = node.attribute("opacity")) {
-        xf.opacity = attr.as_double(1.0);
+        xf.opacity = parseDoubleAttr(attr, 1.0);
     }
 
     if (xf.opacity <= 0.0)
@@ -99,7 +118,7 @@ FlameTransform parseXformNode(const pugi::xml_node& node, bool isFinal) {
         const auto id = static_cast<VariationId>(i);
         const auto& info = FlameVariation::getInfo(id);
         if (auto attr = node.attribute(std::string(info.name).c_str())) {
-            const double w = attr.as_double(0.0);
+            const double w = parseDoubleAttr(attr, 0.0);
             if (w != 0.0) {
                 xf.setVariation(id, w);
             }
@@ -127,7 +146,7 @@ FlameTransform parseXformNode(const pugi::xml_node& node, bool isFinal) {
     // Parse variation parameters
     for (auto paramName : FlameVariation::allParameterNames()) {
         if (auto attr = node.attribute(std::string(paramName).c_str())) {
-            xf.params.setParam(paramName, attr.as_double(0.0));
+            xf.params.setParam(paramName, parseDoubleAttr(attr, 0.0));
         }
     }
 
@@ -146,46 +165,46 @@ FlameFractal parseFlameNode(const pugi::xml_node& node) {
         cp.version = attr.value();
     }
     if (auto attr = node.attribute("time")) {
-        cp.time = attr.as_double(0.0);
+        cp.time = parseDoubleAttr(attr, 0.0);
     }
     if (auto attr = node.attribute("hue")) {
-        cp.hueRotation = attr.as_double(1.0);
+        cp.hueRotation = parseDoubleAttr(attr, 1.0);
     }
     if (auto attr = node.attribute("brightness")) {
-        cp.brightness = attr.as_double(1.0);
+        cp.brightness = parseDoubleAttr(attr, 1.0);
     }
     if (auto attr = node.attribute("contrast")) {
-        cp.contrast = attr.as_double(1.0);
+        cp.contrast = parseDoubleAttr(attr, 1.0);
     }
     if (auto attr = node.attribute("gamma")) {
-        cp.gamma = attr.as_double(1.0);
+        cp.gamma = parseDoubleAttr(attr, 1.0);
     }
     if (auto attr = node.attribute("vibrancy")) {
-        cp.vibrancy = attr.as_double(1.0);
+        cp.vibrancy = parseDoubleAttr(attr, 1.0);
     }
     if (auto attr = node.attribute("gamma_threshold")) {
-        cp.gammaThreshold = attr.as_double(0.0);
+        cp.gammaThreshold = parseDoubleAttr(attr, 0.0);
     }
     if (auto attr = node.attribute("zoom")) {
-        cp.zoom = attr.as_double(0.0);
+        cp.zoom = parseDoubleAttr(attr, 0.0);
     }
     if (auto attr = node.attribute("scale")) {
-        cp.scale = attr.as_double(50.0);
+        cp.scale = parseDoubleAttr(attr, 50.0);
     }
     if (auto attr = node.attribute("rotate")) {
-        cp.setRotateDegrees(attr.as_double(0.0));
+        cp.setRotateDegrees(parseDoubleAttr(attr, 0.0));
     }
     if (auto attr = node.attribute("angle")) {
-        cp.angle = attr.as_double(0.0);
+        cp.angle = parseDoubleAttr(attr, 0.0);
     }
     if (auto attr = node.attribute("oversample")) {
         cp.oversample = attr.as_int(1);
     }
     if (auto attr = node.attribute("filter")) {
-        cp.filterRadius = attr.as_double(0.5);
+        cp.filterRadius = parseDoubleAttr(attr, 0.5);
     }
     if (auto attr = node.attribute("quality")) {
-        cp.quality = attr.as_double(50.0);
+        cp.quality = parseDoubleAttr(attr, 50.0);
     }
     if (auto attr = node.attribute("batches")) {
         cp.nbatches = attr.as_int(1);
