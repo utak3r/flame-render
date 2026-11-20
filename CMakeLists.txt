@@ -48,7 +48,7 @@ set_target_properties(flame_render PROPERTIES
 target_include_directories(flame_render PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
-target_link_libraries(flame_render PUBLIC
+target_link_libraries(flame_render PRIVATE
     pugixml::pugixml
     lodepng
 )
