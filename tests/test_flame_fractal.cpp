@@ -274,8 +274,8 @@ TEST(FlameXmlSerializerTest, EscapesAttributesAndPreservesAllFields) {
     EXPECT_FALSE(reloadedSingle[0].finalXformEnabled);
     EXPECT_FALSE(reloadedSingle[0].useFinalXform());
 
-    const std::string collectionXml = FlameXmlSerializer::toXmlString(
-        {f}, R"(Collection "1" & <All>)");
+    const std::string collectionXml =
+        FlameXmlSerializer::toXmlString({f}, R"(Collection "1" & <All>)");
     const auto reloadedCollection =
         FlameXmlSerializer::loadFromString(collectionXml);
     ASSERT_EQ(reloadedCollection.size(), 1u);

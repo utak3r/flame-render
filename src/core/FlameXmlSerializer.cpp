@@ -302,8 +302,7 @@ void appendXformNode(pugi::xml_node parent,
                      const FlameTransform& xf,
                      bool isFinal,
                      bool finalEnabled) {
-    pugi::xml_node node =
-        parent.append_child(isFinal ? "finalxform" : "xform");
+    pugi::xml_node node = parent.append_child(isFinal ? "finalxform" : "xform");
 
     if (isFinal) {
         if (!finalEnabled) {
