@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <locale>
 #include <sstream>
 #include <stdexcept>
 
@@ -275,38 +276,71 @@ FlameFractal parseFlameNode(const pugi::xml_node& node) {
     return cp;
 }
 
-void writeXformXml(std::ostringstream& oss,
-                   const FlameTransform& xf,
-                   bool isFinal) {
-    if (isFinal) {
-        oss << "   <finalxform color=\"" << xf.color << "\" ";
-    } else {
-        oss << "   <xform weight=\"" << xf.weight << "\" color=\"" << xf.color
-            << "\" ";
+std::string formatDouble(double value) {
+    std::ostringstream oss;
+    oss.imbue(std::locale::classic());
+    oss << std::setprecision(15) << value;
+    return oss.str();
+}
+
+std::string formatDoubleList(std::initializer_list<double> values) {
+    std::ostringstream oss;
+    oss.imbue(std::locale::classic());
+    oss << std::setprecision(15);
+    bool first = true;
+    for (double v : values) {
+        if (!first) {
+            oss << ' ';
+        }
+        oss << v;
+        first = false;
     }
+    return oss.str();
+}
+
+void appendXformNode(pugi::xml_node parent,
+                     const FlameTransform& xf,
+                     bool isFinal,
+                     bool finalEnabled) {
+    pugi::xml_node node =
+        parent.append_child(isFinal ? "finalxform" : "xform");
+
+    if (isFinal) {
+        if (!finalEnabled) {
+            node.append_attribute("enabled") = 0;
+        }
+    } else {
+        node.append_attribute("weight") = formatDouble(xf.weight).c_str();
+    }
+    node.append_attribute("color") = formatDouble(xf.color).c_str();
+
     if (xf.symmetry != 0.0) {
-        oss << "symmetry=\"" << xf.symmetry << "\" ";
+        node.append_attribute("symmetry") = formatDouble(xf.symmetry).c_str();
     }
     if (!isFinal && xf.opacity != 1.0) {
-        oss << "opacity=\"" << xf.opacity << "\" ";
+        node.append_attribute("opacity") = formatDouble(xf.opacity).c_str();
     }
 
     for (size_t i = 0; i < kNumVariations; ++i) {
         const auto id = static_cast<VariationId>(i);
         const double w = xf.variationWeight(id);
         if (w != 0.0) {
-            oss << FlameVariation::getInfo(id).name << "=\"" << w << "\" ";
+            node.append_attribute(
+                std::string(FlameVariation::getInfo(id).name).c_str()) =
+                formatDouble(w).c_str();
         }
     }
 
-    oss << "coefs=\"" << xf.coefs[0][0] << " " << xf.coefs[0][1] << " "
-        << xf.coefs[1][0] << " " << xf.coefs[1][1] << " " << xf.coefs[2][0]
-        << " " << xf.coefs[2][1] << "\" ";
+    node.append_attribute("coefs") =
+        formatDoubleList({xf.coefs[0][0], xf.coefs[0][1], xf.coefs[1][0],
+                          xf.coefs[1][1], xf.coefs[2][0], xf.coefs[2][1]})
+            .c_str();
 
     if (xf.hasPostTransform()) {
-        oss << "post=\"" << xf.post[0][0] << " " << xf.post[0][1] << " "
-            << xf.post[1][0] << " " << xf.post[1][1] << " " << xf.post[2][0]
-            << " " << xf.post[2][1] << "\" ";
+        node.append_attribute("post") =
+            formatDoubleList({xf.post[0][0], xf.post[0][1], xf.post[1][0],
+                              xf.post[1][1], xf.post[2][0], xf.post[2][1]})
+                .c_str();
     }
 
     for (size_t i = 0; i < kNumVariations; ++i) {
@@ -315,7 +349,8 @@ void writeXformXml(std::ostringstream& oss,
             const auto& info = FlameVariation::getInfo(id);
             for (auto paramName : info.parameterNames) {
                 if (auto val = xf.params.getParam(paramName)) {
-                    oss << paramName << "=\"" << *val << "\" ";
+                    node.append_attribute(std::string(paramName).c_str()) =
+                        formatDouble(*val).c_str();
                 }
             }
         }
@@ -330,15 +365,94 @@ void writeXformXml(std::ostringstream& oss,
             }
         }
         if (lastNonOne >= 0) {
-            oss << "chaos=\"";
+            std::ostringstream oss;
+            oss.imbue(std::locale::classic());
+            oss << std::setprecision(15);
             for (int i = 0; i <= lastNonOne; ++i) {
-                oss << xf.modWeights[static_cast<size_t>(i)] << " ";
+                if (i > 0) {
+                    oss << ' ';
+                }
+                oss << xf.modWeights[static_cast<size_t>(i)];
             }
-            oss << "\" ";
+            node.append_attribute("chaos") = oss.str().c_str();
         }
     }
+}
 
-    oss << "/>\n";
+void appendFlameNode(pugi::xml_node parent, const FlameFractal& cp) {
+    pugi::xml_node node = parent.append_child("flame");
+    node.append_attribute("name") = cp.name.c_str();
+    node.append_attribute("version") = cp.version.c_str();
+
+    if (!cp.nick.empty()) {
+        node.append_attribute("nick") = cp.nick.c_str();
+    }
+    if (!cp.url.empty()) {
+        node.append_attribute("url") = cp.url.c_str();
+    }
+    if (cp.time != 0.0) {
+        node.append_attribute("time") = formatDouble(cp.time).c_str();
+    }
+
+    node.append_attribute("size") =
+        (std::to_string(cp.width) + " " + std::to_string(cp.height)).c_str();
+    node.append_attribute("center") =
+        formatDoubleList({cp.center[0], cp.center[1]}).c_str();
+    node.append_attribute("scale") = formatDouble(cp.scale).c_str();
+
+    if (cp.angle != 0.0) {
+        node.append_attribute("rotate") =
+            formatDouble(cp.rotateDegrees()).c_str();
+    }
+    if (cp.zoom != 0.0) {
+        node.append_attribute("zoom") = formatDouble(cp.zoom).c_str();
+    }
+
+    node.append_attribute("oversample") = cp.oversample;
+    node.append_attribute("filter") = formatDouble(cp.filterRadius).c_str();
+    node.append_attribute("quality") = formatDouble(cp.quality).c_str();
+
+    if (cp.nbatches != 1) {
+        node.append_attribute("batches") = cp.nbatches;
+    }
+
+    node.append_attribute("background") =
+        formatDoubleList({cp.background[0] / 255.0, cp.background[1] / 255.0,
+                          cp.background[2] / 255.0})
+            .c_str();
+
+    if (cp.hueRotation != 1.0) {
+        node.append_attribute("hue") = formatDouble(cp.hueRotation).c_str();
+    }
+    node.append_attribute("brightness") = formatDouble(cp.brightness).c_str();
+    if (cp.contrast != 1.0) {
+        node.append_attribute("contrast") = formatDouble(cp.contrast).c_str();
+    }
+    node.append_attribute("gamma") = formatDouble(cp.gamma).c_str();
+
+    if (cp.vibrancy != 1.0) {
+        node.append_attribute("vibrancy") = formatDouble(cp.vibrancy).c_str();
+    }
+    if (cp.gammaThreshold != 0.0) {
+        node.append_attribute("gamma_threshold") =
+            formatDouble(cp.gammaThreshold).c_str();
+    }
+    if (cp.soloXform >= 0) {
+        node.append_attribute("soloxform") = cp.soloXform;
+    }
+
+    for (const auto& xf : cp.xforms) {
+        appendXformNode(node, xf, false, true);
+    }
+    if (cp.hasFinalXform()) {
+        appendXformNode(node, *cp.finalXform, true, cp.finalXformEnabled);
+    }
+
+    pugi::xml_node palette = node.append_child("palette");
+    palette.append_attribute("count") = 256;
+    palette.append_attribute("format") = "RGB";
+    const std::string paletteText = "\n" + cp.gradient.toHex(false) + "\n   ";
+    palette.text().set(paletteText.c_str());
 }
 
 }  // namespace
@@ -386,68 +500,24 @@ std::vector<FlameFractal> FlameXmlSerializer::loadFromString(
 }
 
 std::string FlameXmlSerializer::toXmlString(const FlameFractal& cp) {
+    pugi::xml_document doc;
+    appendFlameNode(doc, cp);
     std::ostringstream oss;
-    oss << std::setprecision(15);
-    oss << "<flame name=\"" << cp.name << "\" version=\"" << cp.version << "\" "
-        << "size=\"" << cp.width << " " << cp.height << "\" "
-        << "center=\"" << cp.center[0] << " " << cp.center[1] << "\" "
-        << "scale=\"" << cp.scale << "\" ";
-
-    if (cp.angle != 0.0) {
-        oss << "rotate=\"" << cp.rotateDegrees() << "\" ";
-    }
-    if (cp.zoom != 0.0) {
-        oss << "zoom=\"" << cp.zoom << "\" ";
-    }
-
-    oss << "oversample=\"" << cp.oversample << "\" "
-        << "filter=\"" << cp.filterRadius << "\" "
-        << "quality=\"" << cp.quality << "\" ";
-
-    if (cp.nbatches != 1) {
-        oss << "batches=\"" << cp.nbatches << "\" ";
-    }
-
-    oss << "background=\"" << (cp.background[0] / 255.0) << " "
-        << (cp.background[1] / 255.0) << " " << (cp.background[2] / 255.0)
-        << "\" "
-        << "brightness=\"" << cp.brightness << "\" "
-        << "gamma=\"" << cp.gamma << "\" ";
-
-    if (cp.vibrancy != 1.0) {
-        oss << "vibrancy=\"" << cp.vibrancy << "\" ";
-    }
-    if (cp.gammaThreshold != 0.0) {
-        oss << "gamma_threshold=\"" << cp.gammaThreshold << "\" ";
-    }
-    if (cp.soloXform >= 0) {
-        oss << "soloxform=\"" << cp.soloXform << "\" ";
-    }
-    oss << ">\n";
-
-    for (const auto& xf : cp.xforms) {
-        writeXformXml(oss, xf, false);
-    }
-    if (cp.hasFinalXform()) {
-        writeXformXml(oss, *cp.finalXform, true);
-    }
-
-    oss << "   <palette count=\"256\" format=\"RGB\">\n"
-        << cp.gradient.toHex(false) << "\n"
-        << "   </palette>\n"
-        << "</flame>\n";
+    doc.save(oss, "   ", pugi::format_default | pugi::format_no_declaration);
     return oss.str();
 }
 
 std::string FlameXmlSerializer::toXmlString(
     const std::vector<FlameFractal>& fractals,
     std::string_view collectionName) {
-    std::ostringstream oss;
-    oss << "<Flames name=\"" << collectionName << "\">\n";
+    pugi::xml_document doc;
+    pugi::xml_node root = doc.append_child("Flames");
+    root.append_attribute("name") = std::string(collectionName).c_str();
     for (const auto& f : fractals) {
-        oss << toXmlString(f);
+        appendFlameNode(root, f);
     }
-    oss << "</Flames>\n";
+    std::ostringstream oss;
+    doc.save(oss, "   ", pugi::format_default | pugi::format_no_declaration);
     return oss.str();
 }
 

@@ -244,6 +244,54 @@ TEST(FlameXmlSerializerTest, LoadExamplesAndRoundTrip) {
     }
 }
 
+TEST(FlameXmlSerializerTest, EscapesAttributesAndPreservesAllFields) {
+    FlameFractal f = FlameFractal::createRandom(2, 3, 2026);
+    f.name = R"(Flame "A" & <B> > 'C')";
+    f.version = R"(Apo "7X" & <test>)";
+    f.nick = R"(author & "friend" <1>)";
+    f.url = R"(https://example.com/?a=1&b="2")";
+    f.time = 12.5;
+    f.hueRotation = 0.35;
+    f.contrast = 1.75;
+
+    FlameTransform finalXf;
+    finalXf.color = 0.4;
+    finalXf.setVariation(VariationId::Spherical, 1.0);
+    f.finalXform = finalXf;
+    f.finalXformEnabled = false;
+
+    const std::string singleXml = FlameXmlSerializer::toXmlString(f);
+    const auto reloadedSingle = FlameXmlSerializer::loadFromString(singleXml);
+    ASSERT_EQ(reloadedSingle.size(), 1u);
+    EXPECT_EQ(reloadedSingle[0].name, f.name);
+    EXPECT_EQ(reloadedSingle[0].version, f.version);
+    EXPECT_EQ(reloadedSingle[0].nick, f.nick);
+    EXPECT_EQ(reloadedSingle[0].url, f.url);
+    EXPECT_DOUBLE_EQ(reloadedSingle[0].time, f.time);
+    EXPECT_DOUBLE_EQ(reloadedSingle[0].hueRotation, f.hueRotation);
+    EXPECT_DOUBLE_EQ(reloadedSingle[0].contrast, f.contrast);
+    EXPECT_TRUE(reloadedSingle[0].hasFinalXform());
+    EXPECT_FALSE(reloadedSingle[0].finalXformEnabled);
+    EXPECT_FALSE(reloadedSingle[0].useFinalXform());
+
+    const std::string collectionXml = FlameXmlSerializer::toXmlString(
+        {f}, R"(Collection "1" & <All>)");
+    const auto reloadedCollection =
+        FlameXmlSerializer::loadFromString(collectionXml);
+    ASSERT_EQ(reloadedCollection.size(), 1u);
+    EXPECT_EQ(reloadedCollection[0].name, f.name);
+    EXPECT_FALSE(reloadedCollection[0].finalXformEnabled);
+
+    // Default values should be omitted from serialized XML
+    FlameFractal defaults = FlameFractal::createRandom(2, 2, 7);
+    const std::string defaultXml = FlameXmlSerializer::toXmlString(defaults);
+    EXPECT_EQ(defaultXml.find("nick="), std::string::npos);
+    EXPECT_EQ(defaultXml.find("url="), std::string::npos);
+    EXPECT_EQ(defaultXml.find("time="), std::string::npos);
+    EXPECT_EQ(defaultXml.find("hue="), std::string::npos);
+    EXPECT_EQ(defaultXml.find("contrast="), std::string::npos);
+}
+
 TEST(FlameFractalTest, AdjustScaleAndRandomCreation) {
     FlameFractal f = FlameFractal::createRandom(2, 5, 12345);
     EXPECT_GE(f.xforms.size(), 2u);
