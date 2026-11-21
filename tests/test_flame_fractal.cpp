@@ -340,6 +340,21 @@ TEST(FlameXmlSerializerTest, LocaleIndependentFloatSerializationAndParsing) {
     EXPECT_DOUBLE_EQ(reloaded[0].xforms[0].coefs[2][1], 2.5);
 }
 
+TEST(FlameXmlSerializerTest, MalformedXmlAndMissingFileThrow) {
+    EXPECT_THROW(FlameXmlSerializer::loadFromString("<flame name=\"unclosed>"),
+                 std::runtime_error);
+    EXPECT_THROW(FlameXmlSerializer::loadFromString("<Flames><flame></Flames>"),
+                 std::runtime_error);
+
+    const std::filesystem::path missingPath =
+        std::filesystem::temp_directory_path() /
+        "flame_nonexistent_file_for_test.flame";
+    std::error_code ec;
+    std::filesystem::remove(missingPath, ec);
+    EXPECT_THROW(FlameXmlSerializer::loadFromFile(missingPath),
+                 std::runtime_error);
+}
+
 TEST(FlameFractalTest, AdjustScaleAndRandomCreation) {
     FlameFractal f = FlameFractal::createRandom(2, 5, 12345);
     EXPECT_GE(f.xforms.size(), 2u);
@@ -380,4 +395,47 @@ TEST(FlameFractalTest, NormalizeWeightsHandlesNormalSmallAndEmptyCases) {
         sum += xf.weight;
     }
     EXPECT_DOUBLE_EQ(sum, 1.0);
+
+    FlameFractal zeros;
+    zeros.xforms.resize(5);
+    for (auto& xf : zeros.xforms) {
+        xf.weight = 0.0;
+    }
+    zeros.normalizeWeights();
+    for (const auto& xf : zeros.xforms) {
+        EXPECT_DOUBLE_EQ(xf.weight, 0.2);
+    }
+}
+
+TEST(FlameFractalTest, AddSymmetryCases) {
+    FlameFractal f;
+    EXPECT_EQ(f.addSymmetry(0), 0);
+    EXPECT_EQ(f.addSymmetry(1), 0);
+    EXPECT_TRUE(f.xforms.empty());
+
+    // Positive 3-fold rotational symmetry adds 2 transforms (120 and 240 deg)
+    EXPECT_EQ(f.addSymmetry(3), 2);
+    ASSERT_EQ(f.xforms.size(), 2u);
+    for (const auto& xf : f.xforms) {
+        EXPECT_DOUBLE_EQ(xf.weight, 1.0);
+        EXPECT_DOUBLE_EQ(xf.symmetry, 1.0);
+        EXPECT_DOUBLE_EQ(xf.variationWeight(VariationId::Linear), 1.0);
+        // Rotation matrix determinant = cos^2 + sin^2 = 1
+        const double det =
+            xf.coefs[0][0] * xf.coefs[1][1] - xf.coefs[0][1] * xf.coefs[1][0];
+        EXPECT_NEAR(det, 1.0, 1e-12);
+    }
+
+    // Negative 2-fold dihedral symmetry adds 1 reflection + 1 rotation
+    FlameFractal fNeg;
+    EXPECT_EQ(fNeg.addSymmetry(-2), 2);
+    ASSERT_EQ(fNeg.xforms.size(), 2u);
+    // First added transform is X-axis reflection: coefs = (-1, 0, 0, 1, 0, 0)
+    EXPECT_DOUBLE_EQ(fNeg.xforms[0].coefs[0][0], -1.0);
+    EXPECT_DOUBLE_EQ(fNeg.xforms[0].coefs[1][1], 1.0);
+    EXPECT_DOUBLE_EQ(fNeg.xforms[0].symmetry, 1.0);
+    // Second added transform is 180-degree rotation: coefs = (-1, 0, 0, -1, 0,
+    // 0)
+    EXPECT_NEAR(fNeg.xforms[1].coefs[0][0], -1.0, 1e-12);
+    EXPECT_NEAR(fNeg.xforms[1].coefs[1][1], -1.0, 1e-12);
 }

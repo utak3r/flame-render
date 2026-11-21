@@ -294,3 +294,42 @@ TEST(FlameCpuRendererTest, ThrowsWhenOutputPngCannotBeSaved) {
 
     EXPECT_THROW(renderer.render(opts), std::runtime_error);
 }
+
+TEST(FlameCpuRendererTest, RenderWithoutFractalThrows) {
+    FlameCpuRenderer renderer;
+    EXPECT_THROW(renderer.render(), std::runtime_error);
+
+    renderer.setFractal(nullptr);
+    EXPECT_THROW(renderer.render(), std::runtime_error);
+}
+
+TEST(FlameCpuRendererTest, StopCancelsRenderEarly) {
+    FlameFractal f = FlameFractal::createRandom(2, 4, 303);
+    FlameCpuRenderer renderer;
+    renderer.setFractal(&f);
+
+    RenderOptions opts;
+    opts.width = 200;
+    opts.height = 200;
+    opts.quality = 5000.0;  // ~200M samples (~20,000 batches) if uncancelled
+    opts.oversample = 1;
+    opts.filterRadius = 0.0;
+    opts.numThreads = 1;
+    opts.seed = 2026ULL;
+
+    bool stopTriggered = false;
+    opts.onProgress = [&](double p) {
+        if (!stopTriggered && p < 1.0) {
+            stopTriggered = true;
+            renderer.stop();
+        }
+    };
+
+    const FlameImage img = renderer.render(opts);
+    const RenderStats stats = renderer.getLastStats();
+    EXPECT_TRUE(stopTriggered);
+    EXPECT_EQ(img.width(), 200);
+    EXPECT_EQ(img.height(), 200);
+    EXPECT_GT(stats.totalSamples, 0LL);
+    EXPECT_LT(stats.totalSamples, 10'000'000LL);
+}
