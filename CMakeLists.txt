@@ -3,6 +3,8 @@ project(flame_render VERSION 1.0.0 LANGUAGES CXX)
 
 include(FetchContent)
 
+option(BUILD_SHARED_LIBS "Build flame_render as a shared library" OFF)
+
 # 1. pugixml for XML parsing/serialization
 if(NOT TARGET pugixml::pugixml)
     FetchContent_Declare(
@@ -10,7 +12,14 @@ if(NOT TARGET pugixml::pugixml)
         GIT_REPOSITORY https://github.com/zeux/pugixml.git
         GIT_TAG v1.14
     )
+    set(BUILD_SHARED_LIBS OFF)
     FetchContent_MakeAvailable(pugixml)
+    unset(BUILD_SHARED_LIBS)
+    if(TARGET pugixml-static)
+        set_target_properties(pugixml-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    elseif(TARGET pugixml)
+        set_target_properties(pugixml PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
 endif()
 
 # 2. lodepng for PNG encoding/decoding
@@ -23,11 +32,12 @@ if(NOT TARGET lodepng)
     )
     FetchContent_MakeAvailable(lodepng)
     add_library(lodepng STATIC "${lodepng_SOURCE_DIR}/lodepng.cpp")
+    set_target_properties(lodepng PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_include_directories(lodepng PUBLIC "${lodepng_SOURCE_DIR}")
 endif()
 
 # Core Flame Fractal & Renderer library
-add_library(flame_render STATIC
+add_library(flame_render
     src/core/FlameGradient.cpp
     src/core/FlameVariation.cpp
     src/core/FlameTransform.cpp
@@ -43,6 +53,7 @@ target_compile_features(flame_render PUBLIC cxx_std_20)
 set_target_properties(flame_render PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
 
 target_include_directories(flame_render PUBLIC

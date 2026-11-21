@@ -32,5 +32,14 @@ else()
     target_compile_options(flame_render_tests PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+if(WIN32)
+    add_custom_command(TARGET flame_render_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:$<TARGET_RUNTIME_DLLS:flame_render_tests>>,copy_if_different,true>
+            $<TARGET_RUNTIME_DLLS:flame_render_tests>
+            $<TARGET_FILE_DIR:flame_render_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(flame_render_tests)
