@@ -186,114 +186,66 @@ FlameImage FlameToneMapper::createImage(const FlameFractal& cp,
 
             bx += oversample_;
 
-            if (cp.transparency) {
-                if (fp[3] > 0.0) {
-                    double alpha = 0.0;
-                    if (fp[3] <= gammaThreshold) {
-                        const double frac = fp[3] / gammaThreshold;
-                        alpha = (1.0 - frac) * fp[3] * funcval +
-                                frac * std::pow(fp[3], gamma);
-                    } else {
-                        alpha = std::pow(fp[3], gamma);
-                    }
-
-                    const double ls = static_cast<double>(vib) * alpha / fp[3];
-                    int64_t ai = apoRound(alpha * 256.0);
-                    if (ai <= 0) {
-                        img.setPixel(j, i, zeroBg);
-                        continue;
-                    }
-                    if (ai > 255)
-                        ai = 255;
-
-                    int64_t ri = 0, gi = 0, bi = 0;
-                    if (notvib > 0) {
-                        ri =
-                            apoRound(ls * fp[0] +
-                                     static_cast<double>(notvib) *
-                                         std::pow(std::max(0.0, fp[0]), gamma));
-                        gi =
-                            apoRound(ls * fp[1] +
-                                     static_cast<double>(notvib) *
-                                         std::pow(std::max(0.0, fp[1]), gamma));
-                        bi =
-                            apoRound(ls * fp[2] +
-                                     static_cast<double>(notvib) *
-                                         std::pow(std::max(0.0, fp[2]), gamma));
-                    } else {
-                        ri = apoRound(ls * fp[0]);
-                        gi = apoRound(ls * fp[1]);
-                        bi = apoRound(ls * fp[2]);
-                    }
-
-                    ri = (ri * 255) / ai;
-                    gi = (gi * 255) / ai;
-                    bi = (bi * 255) / ai;
-
-                    ri = std::clamp<int64_t>(ri, 0, 255);
-                    gi = std::clamp<int64_t>(gi, 0, 255);
-                    bi = std::clamp<int64_t>(bi, 0, 255);
-
-                    img.setPixel(j, i,
-                                 PixelRGBA{static_cast<uint8_t>(ri),
-                                           static_cast<uint8_t>(gi),
-                                           static_cast<uint8_t>(bi),
-                                           static_cast<uint8_t>(ai)});
-                } else {
-                    img.setPixel(j, i, zeroBg);
-                }
-            } else {
-                if (fp[3] > 0.0) {
-                    double alpha = 0.0;
-                    if (fp[3] <= gammaThreshold) {
-                        const double frac = fp[3] / gammaThreshold;
-                        alpha = (1.0 - frac) * fp[3] * funcval +
-                                frac * std::pow(fp[3], gamma);
-                    } else {
-                        alpha = std::pow(fp[3], gamma);
-                    }
-
-                    const double ls = static_cast<double>(vib) * alpha / fp[3];
-                    int64_t ai = apoRound(alpha * 256.0);
-                    ai = std::clamp<int64_t>(ai, 0, 255);
-                    const int64_t ia = 255 - ai;
-
-                    int64_t ri = 0, gi = 0, bi = 0;
-                    if (notvib > 0) {
-                        ri =
-                            apoRound(ls * fp[0] +
-                                     static_cast<double>(notvib) *
-                                         std::pow(std::max(0.0, fp[0]), gamma));
-                        gi =
-                            apoRound(ls * fp[1] +
-                                     static_cast<double>(notvib) *
-                                         std::pow(std::max(0.0, fp[1]), gamma));
-                        bi =
-                            apoRound(ls * fp[2] +
-                                     static_cast<double>(notvib) *
-                                         std::pow(std::max(0.0, fp[2]), gamma));
-                    } else {
-                        ri = apoRound(ls * fp[0]);
-                        gi = apoRound(ls * fp[1]);
-                        bi = apoRound(ls * fp[2]);
-                    }
-
-                    ri += (ia * bgi[0]) >> 8;
-                    gi += (ia * bgi[1]) >> 8;
-                    bi += (ia * bgi[2]) >> 8;
-
-                    ri = std::clamp<int64_t>(ri, 0, 255);
-                    gi = std::clamp<int64_t>(gi, 0, 255);
-                    bi = std::clamp<int64_t>(bi, 0, 255);
-
-                    img.setPixel(j, i,
-                                 PixelRGBA{static_cast<uint8_t>(ri),
-                                           static_cast<uint8_t>(gi),
-                                           static_cast<uint8_t>(bi), 255});
-                } else {
-                    img.setPixel(j, i, bgOpaque);
-                }
+            if (fp[3] <= 0.0) {
+                img.setPixel(j, i, cp.transparency ? zeroBg : bgOpaque);
+                continue;
             }
+
+            double alpha = 0.0;
+            if (fp[3] <= gammaThreshold) {
+                const double frac = fp[3] / gammaThreshold;
+                alpha = (1.0 - frac) * fp[3] * funcval +
+                        frac * std::pow(fp[3], gamma);
+            } else {
+                alpha = std::pow(fp[3], gamma);
+            }
+
+            int64_t ai = apoRound(alpha * 256.0);
+            if (cp.transparency && ai <= 0) {
+                img.setPixel(j, i, zeroBg);
+                continue;
+            }
+            ai = std::clamp<int64_t>(ai, 0, 255);
+
+            const double ls = static_cast<double>(vib) * alpha / fp[3];
+            int64_t ri = 0, gi = 0, bi = 0;
+            if (notvib > 0) {
+                ri = apoRound(ls * fp[0] +
+                              static_cast<double>(notvib) *
+                                  std::pow(std::max(0.0, fp[0]), gamma));
+                gi = apoRound(ls * fp[1] +
+                              static_cast<double>(notvib) *
+                                  std::pow(std::max(0.0, fp[1]), gamma));
+                bi = apoRound(ls * fp[2] +
+                              static_cast<double>(notvib) *
+                                  std::pow(std::max(0.0, fp[2]), gamma));
+            } else {
+                ri = apoRound(ls * fp[0]);
+                gi = apoRound(ls * fp[1]);
+                bi = apoRound(ls * fp[2]);
+            }
+
+            uint8_t outAlpha = 255;
+            if (cp.transparency) {
+                ri = (ri * 255) / ai;
+                gi = (gi * 255) / ai;
+                bi = (bi * 255) / ai;
+                outAlpha = static_cast<uint8_t>(ai);
+            } else {
+                const int64_t ia = 255 - ai;
+                ri += (ia * bgi[0]) >> 8;
+                gi += (ia * bgi[1]) >> 8;
+                bi += (ia * bgi[2]) >> 8;
+            }
+
+            ri = std::clamp<int64_t>(ri, 0, 255);
+            gi = std::clamp<int64_t>(gi, 0, 255);
+            bi = std::clamp<int64_t>(bi, 0, 255);
+
+            img.setPixel(
+                j, i,
+                PixelRGBA{static_cast<uint8_t>(ri), static_cast<uint8_t>(gi),
+                          static_cast<uint8_t>(bi), outAlpha});
         }
         by += oversample_;
     }
