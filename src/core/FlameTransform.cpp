@@ -31,6 +31,25 @@ Matrix3x3 mul33(const Matrix3x3& M1, const Matrix3x3& M2) noexcept {
     return res;
 }
 
+void applyAffineMatrix(decltype(FlameTransform::coefs)& coefs,
+                       const Matrix3x3& M1) noexcept {
+    Matrix3x3 matrix = identityMatrix();
+    matrix[0][0] = coefs[0][0];
+    matrix[0][1] = coefs[0][1];
+    matrix[1][0] = coefs[1][0];
+    matrix[1][1] = coefs[1][1];
+    matrix[0][2] = coefs[2][0];
+    matrix[1][2] = coefs[2][1];
+
+    matrix = mul33(matrix, M1);
+    coefs[0][0] = matrix[0][0];
+    coefs[0][1] = matrix[0][1];
+    coefs[1][0] = matrix[1][0];
+    coefs[1][1] = matrix[1][1];
+    coefs[2][0] = matrix[0][2];
+    coefs[2][1] = matrix[1][2];
+}
+
 }  // namespace
 
 FlameTransform::FlameTransform() {
@@ -108,44 +127,14 @@ void FlameTransform::rotate(double degrees) noexcept {
     M1[0][1] = -std::sin(r);
     M1[1][0] = std::sin(r);
     M1[1][1] = std::cos(r);
-
-    Matrix3x3 Matrix = identityMatrix();
-    Matrix[0][0] = coefs[0][0];
-    Matrix[0][1] = coefs[0][1];
-    Matrix[1][0] = coefs[1][0];
-    Matrix[1][1] = coefs[1][1];
-    Matrix[0][2] = coefs[2][0];
-    Matrix[1][2] = coefs[2][1];
-
-    Matrix = mul33(Matrix, M1);
-    coefs[0][0] = Matrix[0][0];
-    coefs[0][1] = Matrix[0][1];
-    coefs[1][0] = Matrix[1][0];
-    coefs[1][1] = Matrix[1][1];
-    coefs[2][0] = Matrix[0][2];
-    coefs[2][1] = Matrix[1][2];
+    applyAffineMatrix(coefs, M1);
 }
 
 void FlameTransform::translate(double x, double y) noexcept {
     Matrix3x3 M1 = identityMatrix();
     M1[0][2] = x;
     M1[1][2] = y;
-
-    Matrix3x3 Matrix = identityMatrix();
-    Matrix[0][0] = coefs[0][0];
-    Matrix[0][1] = coefs[0][1];
-    Matrix[1][0] = coefs[1][0];
-    Matrix[1][1] = coefs[1][1];
-    Matrix[0][2] = coefs[2][0];
-    Matrix[1][2] = coefs[2][1];
-
-    Matrix = mul33(Matrix, M1);
-    coefs[0][0] = Matrix[0][0];
-    coefs[0][1] = Matrix[0][1];
-    coefs[1][0] = Matrix[1][0];
-    coefs[1][1] = Matrix[1][1];
-    coefs[2][0] = Matrix[0][2];
-    coefs[2][1] = Matrix[1][2];
+    applyAffineMatrix(coefs, M1);
 }
 
 void FlameTransform::multiply(double a, double b, double c, double d) noexcept {
@@ -154,22 +143,7 @@ void FlameTransform::multiply(double a, double b, double c, double d) noexcept {
     M1[0][1] = b;
     M1[1][0] = c;
     M1[1][1] = d;
-
-    Matrix3x3 Matrix = identityMatrix();
-    Matrix[0][0] = coefs[0][0];
-    Matrix[0][1] = coefs[0][1];
-    Matrix[1][0] = coefs[1][0];
-    Matrix[1][1] = coefs[1][1];
-    Matrix[0][2] = coefs[2][0];
-    Matrix[1][2] = coefs[2][1];
-
-    Matrix = mul33(Matrix, M1);
-    coefs[0][0] = Matrix[0][0];
-    coefs[0][1] = Matrix[0][1];
-    coefs[1][0] = Matrix[1][0];
-    coefs[1][1] = Matrix[1][1];
-    coefs[2][0] = Matrix[0][2];
-    coefs[2][1] = Matrix[1][2];
+    applyAffineMatrix(coefs, M1);
 }
 
 void FlameTransform::scale(double s) noexcept {
