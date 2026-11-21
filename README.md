@@ -9,7 +9,7 @@ It is utilizing separate 64-bit rendering buffers for each thread (buffers are m
 
 This library was built having few tarhets in my mind:
 
-- having a command-line utility for fast flame rendering.
+- having a command-line utility for fast flame rendering - [available on GitHub](https://github.com/utak3r/flame-cli).
 - recreating the old Apophysis 2.x using C++20 and Qt6. This is almost ready and will be published very soon.
 - but the most important target, which I'm working on for years now (having my free time **very limited**) is a completely new application for fractal compositions, which is meant for composing many layers of various fractals (not only flames). This application is still under construction and it's my main goal.
 
