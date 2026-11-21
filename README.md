@@ -1,6 +1,17 @@
-# Flame rendering engine
+# Flame Render Engine
 
 A C++20 library (buildable as static or shared) for parsing, manipulating, and rendering Apophysis-compatible fractal flames (`.flame` XML files) to PNG images.
+
+Right now it implements CPU rendering, but other implementations (e.g. Vulkan) could be added later, since the codebase is designed to allow for multiple implementations.
+
+But even this CPU renderer is quite fast (utilizing multi-threading) and really stable. 
+It is utilizing separate 64-bit rendering buffers for each thread (buffers are merged at the end), thus using many threads is very RAM consuming.
+
+This library was built having few tarhets in my mind:
+
+- having a command-line utility for fast flame rendering.
+- recreating the old Apophysis 2.x using C++20 and Qt6. This is almost ready and will be published very soon.
+- but the most important target, which I'm working on for years now (having my free time **very limited**) is a completely new application for fractal compositions, which is meant for composing many layers of various fractals (not only flames). This application is still under construction and it's my main goal.
 
 ## References
 - Original [fractal flame algorithm](https://flam3.com/flame_draves.pdf) by Scott Draves.
