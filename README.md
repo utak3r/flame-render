@@ -7,6 +7,9 @@ A C++20 library (buildable as static or shared) for parsing, manipulating, and r
 - Old [Apophysis 2.09](https://sourceforge.net/projects/apophysis/) sources and builds.
 - [Flam3 renderer](https://github.com/scottdraves/flam3) by Scott Draves and Erik Reckase.
 
+## Platform compatibility
+It is tested and verified against Windows (Visual Studio Community 2022) and Linux (GCC 16.2.1) on Intel i7 CPUs.
+
 ## Sample Gallery
 
 Sample renders from `tests/golden/renders.flame`:
